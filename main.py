@@ -55,6 +55,7 @@ def fetch_anime_data(korean_name, japanese_name):
                 status = anime.get('status')
                 anime_type = anime.get('type')
                 episodes = anime.get('episodes', 0)
+                source = anime.get('source', '')
                 aired = anime.get('aired', {}).get('from', '')
                 aired_year = int(aired[:4]) if aired else None
                 aired_season = int(aired[5:7]) if aired else None
@@ -63,16 +64,20 @@ def fetch_anime_data(korean_name, japanese_name):
                     episodes = 0
 
                 if (
-                        (
-                            korean_name == '거충열도' or korean_name == '공의 경계' or korean_name == '망가지기 시작한 오르골'
-                        ) or
-                        ((status in ['Not yet aired', 'Not available'] and (aired_year == 2024 or aired_year == 2025)) or
-                        (status not in ['Not yet aired', 'Not available'])
+                        # 특정 Korean name 중 하나인 경우
+                        korean_name in ['거충열도', '공의 경계', '망가지기 시작한 오르골'] or
+
+                        # 방영 상태가 Not yet aired, Not available이면서 2024 또는 2025년 방영 예정이거나,
+                        # 방영 상태가 'Not yet aired', 'Not available'이 아닌 경우
+                        ((status in ['Not yet aired', 'Not available'] and aired_year in [2024, 2025]) or
+                         status not in ['Not yet aired', 'Not available'])
                 ) and (
-                        (anime_type in ['TV', 'ONA']) or
-                        (anime_type == 'OVA' and (episodes >= 2 or episodes == 0)) or
-                        (anime_type == 'TV Special' and (episodes >= 3 or episodes == 0 or anime_type == 'Game'))
-                    )
+                        # anime_type이 'TV' 또는 'ONA'이거나,
+                        # anime_type이 'OVA'이면서 에피소드가 1개 이상이거나 에피소드가 없거나, 원작이 게임인 경우
+                        # anime_type이 'TV Special'이면서 에피소드가 3개 이상이거나, 에피소드가 없는 경우
+                        anime_type in ['TV', 'ONA'] or
+                        (anime_type == 'OVA' and (episodes >= 1 or episodes == 0 or source == 'Game')) or
+                        (anime_type == 'TV Special' and (episodes >= 3 or episodes == 0))
                 ):
                     season = None
 
