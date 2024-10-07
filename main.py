@@ -45,7 +45,7 @@ def preprocess_name(korean_name):
 
 
 # 첫 번째 API 호출 함수
-def fetch_anime_data(japanese_name):
+def fetch_anime_data(korean_name, japanese_name):
     response = requests.get(anime_api_url + japanese_name)
     if response.status_code == 200:
         data = response.json()
@@ -56,19 +56,37 @@ def fetch_anime_data(japanese_name):
                 anime_type = anime.get('type')
                 episodes = anime.get('episodes', 0)
                 aired = anime.get('aired', {}).get('from', '')
-                year = int(aired[:4]) if aired else None
+                aired_year = int(aired[:4]) if aired else None
+                aired_season = int(aired[5:7]) if aired else None
 
                 if episodes is None:
                     episodes = 0
 
                 if (
-                        (status in ['Not yet aired', 'Not available'] and year == 2024) or
+                        (
+                            korean_name == '거충열도' or korean_name == '공의 경계' or korean_name == '망가지기 시작한 오르골'
+                        ) or
+                        ((status in ['Not yet aired', 'Not available'] and (aired_year == 2024 or aired_year == 2025)) or
                         (status not in ['Not yet aired', 'Not available'])
                 ) and (
-                        anime_type in ['TV', 'ONA'] or
-                        (anime_type == 'OVA' and (episodes >= 3 or episodes == 0))
+                        (anime_type in ['TV', 'ONA']) or
+                        (anime_type == 'OVA' and (episodes >= 2 or episodes == 0)) or
+                        (anime_type == 'TV Special' and (episodes >= 3 or episodes == 0 or anime_type == 'Game'))
+                    )
                 ):
-                    return anime
+                    season = None
+
+                    if aired_year != 2025:
+                        if aired_season <= 3:
+                            season = "spring"
+                        elif aired_season <= 6:
+                            season = "summer"
+                        elif aired_season <= 9:
+                            season = "fall"
+                        else:
+                            season = "winter"
+
+                    return [anime,aired_year, season]
         return None
     return None
 
@@ -100,12 +118,14 @@ def update_csv_files():
             english_name = row['english_name']
             japanese_name = row['japaneses_name']
             existing_alternative_titles = row['alternate_titles']
+            mal_id = row['mal_id']
 
             if process_missing_mal_id == 'y' and pd.notna(mal_id):
                 continue  # mal_id가 있으면 스킵
 
             # API 데이터 가져오기
-            api_data = fetch_anime_data(japanese_name)
+            response = fetch_anime_data(korean_name, japanese_name)
+            api_data = response[0]
 
             if api_data:
                 print(korean_name + " 작업 중")
@@ -141,12 +161,13 @@ def update_csv_files():
                 anime_df.at[idx, 'members'] = api_data.get('members', row['members'])
                 anime_df.at[idx, 'mal_id'] = api_data.get('mal_id', row['mal_id'])
                 anime_df.at[idx, 'animelist_url'] = api_data.get('url', row['animelist_url'])
-                anime_df.at[idx, 'year'] = api_data.get('year', row['year'])
+                anime_df.at[idx, 'year'] = anime_df.at[idx, 'year'] = api_data.get('year') if api_data.get('year') is not None else response[1]
                 anime_df.at[idx, 'favorites'] = api_data.get('favorites', row['favorites'])
                 anime_df.at[idx, 'check_sum'] = api_data.get('title', row['check_sum'])
                 anime_df.at[idx, 'anime_type'] = api_data.get('type', row['anime_type'])
                 anime_df.at[idx, 'episodes'] = api_data.get('episodes', row['episodes'])
-                anime_df.at[idx, 'season'] = api_data.get('season', row['season'])
+                anime_df.at[idx, 'season'] = anime_df.at[idx, 'season'] = api_data.get('season') if api_data.get(
+                    'season') is not None else response[2]
                 anime_df.at[idx, 'source'] = api_data.get('source', row['source'])
 
                 # korean_name 전처리 후 alternative_title에 추가
